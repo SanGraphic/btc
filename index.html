@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#000000">
+    <title>BTC Price Chart</title>
+    
+    <!-- iOS web app icons -->
+    <link rel="apple-touch-icon" href="icon-180.png">
+    <link rel="apple-touch-startup-image" href="splash.png">
+    
+    <!-- Add required dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <style>
+        /* iOS System Font */
+        @font-face {
+            font-family: 'SF Pro Text';
+            src: local('-apple-system'), local('SF Pro Text');
+        }
+        
+        @font-face {
+            font-family: 'SF Pro Display';
+            src: local('-apple-system'), local('SF Pro Display');
+        }
+
+        :root {
+            /* Theme Colors */
+            --system-background: #000000;
+            --secondary-background: #131313;
+            --tertiary-background: #1b1b1b;
+            --primary-text: #FFFFFF;
+            --secondary-text: #B0B0B5;
+            --tertiary-text: #808080;
+            --separator: rgba(255, 255, 255, 0.1);
+            --accent-color: #1ab8f7;
+            --tab-bar-background: #000000;
+            
+            /* Layout Constants */
+            --safe-top: env(safe-area-inset-top);
+            --safe-bottom: env(safe-area-inset-bottom);
+            --nav-height: 44px;
+            --tab-height: 49px;
+        }
+
+        [data-theme="light"] {
+            --system-background: #F2F2F7;
+            --secondary-background: #FFFFFF;
+            --tertiary-background: #E5E5EA;
+            --primary-text: #000000;
+            --secondary-text: #3A3A3C;
+            --tertiary-text: #48484A;
+            --separator: rgba(0, 0, 0, 0.1);
+            --tab-bar-background: #FFFFFF;
+        }
+
+        [data-theme="exchange"] {
+            --system-background: #000000;
+            --secondary-background: #1C1C1E;
+            --tertiary-background: #2C2C2E;
+            --primary-text: #FFFFFF;
+            --secondary-text: #98989D;
+            --tertiary-text: #636366;
+            --separator: rgba(255, 255, 255, 0.1);
+            --tab-bar-background: #1C1C1E;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            font-family: 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        body {
+            background: var(--system-background);
+            color: var(--primary-text);
+            padding-top: var(--safe-top);
+            padding-bottom: calc(var(--tab-height) + var(--safe-bottom));
+            overscroll-behavior-y: contain;
+        }
+
+        /* Pull to Refresh */
+        .refresh-spinner {
+            display: none;
+            position: fixed;
+            top: calc(var(--safe-top) + 10px);
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1001;
+            color: var(--accent-color);
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: translateX(-50%) rotate(0deg); }
+            100% { transform: translateX(-50%) rotate(360deg); }
+        }
+
+        .refresh-spinner.active {
+            display: block;
+        }
+
+        /* Action Sheet */
+        .action-sheet {
+            display: none;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--secondary-background);
+            border-radius: 13px 13px 0 0;
+            padding: 16px;
+            z-index: 2000;
+            transform: translateY(100%);
+            transition: transform 0.5s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.5s cubic-bezier(0.4, 0.0, 0.2, 1);
+            opacity: 0;
+            will-change: transform, opacity;
+        }
+
+        .action-sheet.active {
+            display: block;
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .action-sheet-backdrop {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0);
+            z-index: 1999;
+            transition: background-color 0.5s cubic-bezier(0.4, 0.0, 0.2, 1);
+        }
+
+        .action-sheet-backdrop.active {
+            display: block;
+            background: rgba(0, 0, 0, 0.7);
+        }
+
+        .action-sheet-title {
+            font-size: 13px;
+            color: var(--tertiary-text);
+            text-align: center;
+            margin-bottom: 16px;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s ease 0.1s;
+        }
+
+        .action-sheet.active .action-sheet-title {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .action-sheet-input {
+            background: var(--tertiary-background);
+            border: none;
+            border-radius: 8px;
+            padding: 12px;
+            color: var(--primary-text);
+            width: 100%;
+            margin-bottom: 16px;
+            font-size: 17px;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s ease 0.2s;
+        }
+
+        .action-sheet.active .action-sheet-input {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .action-sheet-button {
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 16px;
+            border-radius: 13px;
+            width: 100%;
+            font-size: 17px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s ease 0.3s;
+        }
+
+        .action-sheet.active .action-sheet-button {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .action-sheet-cancel {
+            background: var(--tertiary-background);
+            color: var(--accent-color);
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s ease 0.4s;
+        }
+
+        .action-sheet.active .action-sheet-cancel {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Tab Bar */
+        .tab-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: calc(var(--tab-height) + var(--safe-bottom));
+            background: var(--tab-bar-background);
+            border-top: 0.5px solid var(--separator);
+            display: flex;
+            padding-bottom: var(--safe-bottom);
+            z-index: 1000;
+        }
+
+        .tab-item {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--secondary-text);
+            font-size: 10px;
+            padding: 6px 0;
+            cursor: pointer;
+            transition: color 0.3s ease;
+        }
+
+        .tab-item.active {
+            color: var(--accent-color);
+        }
+
+        .tab-icon {
+            font-size: 22px;
+            margin-bottom: 4px;
+            transition: transform 0.3s ease;
+        }
+
+        .tab-item:active .tab-icon {
+            transform: scale(0.9);
+        }
+
+        /* Content Pages */
+        .page {
+            display: none;
+            padding: 16px;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+
+        .page.active {
+            display: block;
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .price-card {
+            background: var(--secondary-background);
+            border-radius: 13px;
+            padding: 20px;
+            margin-bottom: 16px;
+            transition: transform 0.3s ease;
+        }
+
+        .price-card:active {
+            transform: scale(0.98);
+        }
+
+        .holdings-info {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid var(--separator);
+        }
+
+        .settings-option {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--separator);
+            transition: background-color 0.3s ease;
+        }
+
+        .settings-option:active {
+            background-color: var(--tertiary-background);
+        }
+
+        .settings-option select {
+            background: var(--tertiary-background);
+            border: none;
+            color: var(--accent-color);
+            padding: 8px;
+            border-radius: 8px;
+            transition: transform 0.3s ease;
+        }
+
+        .settings-option select:focus {
+            transform: scale(1.05);
+        }
+
+        .about-text {
+            color: var(--secondary-text);
+            line-height: 1.5;
+            margin-top: 16px;
+        }
+
+        .chart-container {
+            background: var(--secondary-background);
+            border-radius: 13px;
+            padding: 20px;
+            height: 400px;
+            margin-top: 16px;
+            transition: transform 0.3s ease;
+        }
+
+        .chart-container:active {
+            transform: scale(0.98);
+        }
+    </style>
+</head>
+<body>
+    <!-- Pull to Refresh Spinner -->
+    <div class="refresh-spinner">
+        <i class="fas fa-sync-alt fa-spin"></i>
+    </div>
+
+    <!-- Action Sheet Backdrop -->
+    <div class="action-sheet-backdrop" onclick="hideEditSheet()"></div>
+
+    <!-- Edit Action Sheet -->
+    <div class="action-sheet" id="editSheet">
+        <div class="action-sheet-title">Enter BTC Amount</div>
+        <input type="number" id="btcInput" class="action-sheet-input" placeholder="0.00000000" step="0.00000001">
+        <button onclick="saveHoldings()" class="action-sheet-button">Save</button>
+        <button onclick="hideEditSheet()" class="action-sheet-button action-sheet-cancel">Cancel</button>
+    </div>
+
+    <!-- Price Page -->
+    <div id="pricePage" class="page active">
+        <div class="price-card">
+            <div class="price-title">Current Price</div>
+            <div class="price-value" id="currentPrice">$0.00</div>
+            <div class="holdings-info">
+                <div class="price-title">Your Holdings</div>
+                <div class="price-value" id="holdingsAmount">0 BTC</div>
+                <div class="price-title" id="holdingsValue">$0.00</div>
+            </div>
+        </div>
+        <div class="chart-container">
+            <canvas id="priceChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Settings Page -->
+    <div id="settingsPage" class="page">
+        <div class="price-card">
+            <div class="price-title">Settings</div>
+            <div class="settings-option">
+                <div>Theme</div>
+                <select onchange="setTheme(this.value)">
+                    <option value="dark">Dark</option>
+                    <option value="light">Light</option>
+                    <option value="exchange">Exchange</option>
+                </select>
+            </div>
+            <div class="settings-option">
+                <div>API Provider</div>
+                <select onchange="setApiProvider(this.value)">
+                    <option value="coingecko">CoinGecko</option>
+                    <option value="coinbase">Coinbase</option>
+                    <option value="binance">Binance</option>
+                </select>
+            </div>
+            <p class="about-text">
+                A minimalist Bitcoin price tracker that helps you monitor your holdings in real-time. 
+                Data provided by multiple free cryptocurrency APIs.
+            </p>
+        </div>
+    </div>
+
+    <!-- Tab Bar -->
+    <div class="tab-bar">
+        <div class="tab-item active" onclick="switchPage('pricePage', this)">
+            <div class="tab-icon"><i class="fas fa-chart-line"></i></div>
+            <div>Price</div>
+        </div>
+        <div class="tab-item" onclick="showEditSheet()">
+            <div class="tab-icon"><i class="fas fa-pen"></i></div>
+            <div>Edit</div>
+        </div>
+        <div class="tab-item" onclick="switchPage('settingsPage', this)">
+            <div class="tab-icon"><i class="fas fa-cog"></i></div>
+            <div>Settings</div>
+        </div>
+    </div>
+
+    <script>
+        let currentTheme = localStorage.getItem('theme') || 'dark';
+        let btcHoldings = localStorage.getItem('btcHoldings') || 0;
+        let currentApiProvider = localStorage.getItem('apiProvider') || 'coingecko';
+        let lastY = 0;
+        let refreshing = false;
+
+        document.documentElement.setAttribute('data-theme', currentTheme);
+
+        // Pull to refresh functionality
+        document.addEventListener('touchstart', e => {
+            lastY = e.touches[0].clientY;
+        });
+
+        document.addEventListener('touchmove', e => {
+            const y = e.touches[0].clientY;
+            const scrollTop = document.documentElement.scrollTop;
+            
+            if (scrollTop === 0 && y > lastY && !refreshing) {
+                document.querySelector('.refresh-spinner').classList.add('active');
+                refreshing = true;
+                fetchPrice(true);
+            }
+            lastY = y;
+        });
+
+        function setTheme(theme) {
+            currentTheme = theme;
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('theme', theme);
+        }
+
+        function setApiProvider(provider) {
+            currentApiProvider = provider;
+            localStorage.setItem('apiProvider', provider);
+            fetchPrice(true);
+        }
+
+        function showEditSheet() {
+            document.querySelector('.action-sheet-backdrop').classList.add('active');
+            document.querySelector('.action-sheet').classList.add('active');
+            document.getElementById('btcInput').focus();
+        }
+
+        function hideEditSheet() {
+            document.querySelector('.action-sheet-backdrop').classList.remove('active');
+            document.querySelector('.action-sheet').classList.remove('active');
+        }
+
+        function switchPage(pageId, tabElement) {
+            document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
+            document.querySelectorAll('.tab-item').forEach(tab => tab.classList.remove('active'));
+            document.getElementById(pageId).classList.add('active');
+            tabElement.classList.add('active');
+        }
+
+        function saveHoldings() {
+            const amount = document.getElementById('btcInput').value;
+            btcHoldings = amount;
+            localStorage.setItem('btcHoldings', amount);
+            updateHoldingsDisplay();
+            hideEditSheet();
+            switchPage('pricePage', document.querySelector('.tab-item'));
+        }
+
+        function updateHoldingsDisplay() {
+            const holdings = parseFloat(btcHoldings);
+            const price = parseFloat(document.getElementById('currentPrice').textContent.replace('$', '').replace(',', ''));
+            const value = holdings * price;
+            
+            document.getElementById('holdingsAmount').textContent = `${holdings} BTC`;
+            document.getElementById('holdingsValue').textContent = `$${value.toLocaleString()}`;
+        }
+
+        // Initialize Chart
+        const ctx = document.getElementById('priceChart').getContext('2d');
+        const priceData = {
+            labels: [],
+            datasets: [{
+                label: 'BTC/USDT',
+                data: [],
+                borderColor: '#00FF00',
+                borderWidth: 2,
+                fill: false,
+                tension: 0.4
+            }]
+        };
+
+        const chartConfig = {
+            type: 'line',
+            data: priceData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            color: '#808080'
+                        }
+                    },
+                    y: {
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: '#808080'
+                        }
+                    }
+                }
+            }
+        };
+
+        const chart = new Chart(ctx, chartConfig);
+
+        async function fetchPrice(isRefresh = false) {
+            try {
+                let response, price;
+                
+                switch(currentApiProvider) {
+                    case 'coingecko':
+                        response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
+                        const geckoData = await response.json();
+                        price = geckoData.bitcoin.usd;
+                        break;
+                    case 'coinbase':
+                        response = await fetch('https://api.coinbase.com/v2/prices/BTC-USD/spot');
+                        const coinbaseData = await response.json();
+                        price = parseFloat(coinbaseData.data.amount);
+                        break;
+                    case 'binance':
+                        response = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
+                        const binanceData = await response.json();
+                        price = parseFloat(binanceData.price);
+                        break;
+                }
+                
+                document.getElementById('currentPrice').textContent = `$${price.toLocaleString()}`;
+                updateHoldingsDisplay();
+                
+                const now = new Date();
+                const timeLabel = now.toLocaleTimeString();
+                
+                priceData.labels.push(timeLabel);
+                priceData.datasets[0].data.push(price);
+                
+                if (priceData.labels.length > 60) {
+                    priceData.labels.shift();
+                    priceData.datasets[0].data.shift();
+                }
+                
+                chart.update();
+
+                if (isRefresh) {
+                    setTimeout(() => {
+                        document.querySelector('.refresh-spinner').classList.remove('active');
+                        refreshing = false;
+                    }, 500);
+                }
+            } catch (error) {
+                console.error('Error fetching price:', error);
+                if (isRefresh) {
+                    document.querySelector('.refresh-spinner').classList.remove('active');
+                    refreshing = false;
+                }
+            }
+        }
+
+        // Update price every minute
+        fetchPrice();
+        setInterval(fetchPrice, 60000);
+    </script>
+</body>
+</html>
