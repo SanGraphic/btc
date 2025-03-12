@@ -350,30 +350,58 @@
     <div class="action-sheet" id="editSheet">
         <div class="action-sheet-title">Enter BTC Amount</div>
         <input type="number" id="btcInput" class="action-sheet-input" placeholder="0.00000000" step="0.00000001">
-        <button onclick="saveHoldings()" class="action-sheet-button">Save</button>
-        <button onclick="hideEditSheet()" class="action-sheet-button action-sheet-cancel">Cancel</button>
+        <button onclick="saveHoldings()" class="action-sheet-button" aria-label="Save BTC Amount">Save</button>
+        <button onclick="hideEditSheet()" class="action-sheet-button action-sheet-cancel" aria-label="Cancel Edit">Cancel</button>
     </div>
 
     <!-- Price Page -->
     <div id="pricePage" class="page active">
-        <div class="footer-text" style="font-weight: bold; text-align: left; margin: 20px 0; font-size: 24px; padding-left: 16px;">Bitcoin Stash Tracker</div>
+        <div class="footer-text" style="font-weight: bold; text-align: left; margin: 20px 0; font-size: 1.5rem; padding-left: 16px;">Bitcoin Stash Tracker</div>
         <div class="price-card">
-            <div class="price-title">Current Price</div>
-            <div class="price-value" id="currentPrice">$0.00</div>
-            <div class="holdings-info">
-                <div class="price-title">Your Holdings</div>
-                <div class="price-value" id="holdingsAmount">0 BTC</div>
-                <div class="price-title" id="holdingsValue">$0.00</div>
+            <div class="price-title" style="font-size: 1.2rem;">Current Price</div>
+            <div style="font-size: 2rem; display: flex; align-items: center;">
+                <span id="currentPrice">$0.00</span>
+                <span id="priceChange" style="margin-left: 10px; font-size: 1.2rem; display: inline;">(0.00%)</span>
+            </div>
+            <div class="holdings-info" id="holdingsInfo">
+                <div class="price-title" style="font-size: 1.2rem;">Your Holdings</div>
+                <div class="price-value" id="holdingsAmount" style="font-size: 2rem;">0 BTC</div>
             </div>
         </div>
+        
+        <!-- New Card for USD Value -->
+        <div class="price-card" style="background: var(--secondary-background); margin-top: 16px;">
+            <div class="price-title" style="font-size: 1.2rem; display: flex; align-items: center;">
+                <i class="fas fa-money-bill-wave" style="color: rgb(31, 232, 247); margin-right: 8px;"></i> <!-- Updated cash icon -->
+                Current Value
+            </div>
+            <div class="price-value" id="holdingsValue" style="font-size: 2rem; color: rgb(255, 255, 255);">$0.00</div> <!-- USD value -->
+        </div>
+
         <div class="chart-container">
             <canvas id="priceChart"></canvas>
         </div>
+
+        <!-- Timeframe Selection Button -->
+        <div style="display: flex; justify-content: center; margin-top: 16px;">
+            <button id="timeframeButton" onclick="showTimeframePopup()" style="background: var(--tertiary-background); color: var(--accent-color); border: none; padding: 8px 12px; border-radius: 15px; width: auto; font-size: 14px;">
+                {currentTimeframe}
+            </button>
+        </div>
+    </div>
+
+    <!-- Timeframe Popup -->
+    <div class="action-sheet" id="timeframeSheet">
+        <div class="action-sheet-title">Select Timeframe</div>
+        <button onclick="fetchHistoricalData('day'); updatePriceChange('day'); currentTimeframe = '24 Hours'; updateTimeframeButton(); hideTimeframePopup();" class="action-sheet-button" style="background-color: #1ab8f7;">24 Hours</button>
+        <button onclick="fetchHistoricalData('hour'); updatePriceChange('hour'); currentTimeframe = '1 Hour'; updateTimeframeButton(); hideTimeframePopup();" class="action-sheet-button">1 Hour</button>
+        <button onclick="fetchHistoricalData('lastYear'); updatePriceChange('lastYear'); currentTimeframe = 'Last Year'; updateTimeframeButton(); hideTimeframePopup();" class="action-sheet-button">Last Year</button>
+        <button onclick="hideTimeframePopup();" class="action-sheet-cancel" style="background: transparent; color: white; border: 1px solid white; border-radius: 15px; padding: 10px; width: 100%;">Cancel</button>
     </div>
 
     <!-- Settings Page -->
     <div id="settingsPage" class="page">
-        <div class="footer-text" style="font-weight: bold; text-align: left; margin: 20px 0; font-size: 24px; padding-left: 16px;">Settings</div>
+        <div class="footer-text" style="font-weight: bold; text-align: left; margin: 20px 0; font-size: 1.5rem; padding-left: 16px;">Settings</div>
         <div class="price-card">
             <div class="price-title">Settings</div>
             <div class="settings-option">
@@ -424,6 +452,12 @@
         let lastY = 0;
         let refreshing = false;
         let deferredPrompt;
+        let lastRefreshTime = 0; // Track the last refresh time
+        const refreshCooldown = 60000; // 1 minute cooldown
+        const chartLineColor = '#00FF00'; // Define the chart line color
+        let lastApiCallTime = 0; // Track the last API call time
+        const apiCallCooldown = 60000; // 1 minute cooldown for API calls
+        let currentTimeframe = '24 Hours'; // Default timeframe
 
         document.documentElement.setAttribute('data-theme', currentTheme);
 
@@ -436,10 +470,12 @@
             const y = e.touches[0].clientY;
             const scrollTop = document.documentElement.scrollTop;
             
-            if (scrollTop === 0 && y > lastY && !refreshing) {
+            // Check if we are at the top of the page and if the cooldown period has passed
+            if (scrollTop === 0 && y > lastY && !refreshing && (Date.now() - lastRefreshTime) > refreshCooldown) {
                 document.querySelector('.refresh-spinner').classList.add('active');
                 refreshing = true;
                 fetchPrice(true);
+                lastRefreshTime = Date.now(); // Update the last refresh time
             }
             lastY = y;
         });
@@ -485,11 +521,19 @@
 
         function updateHoldingsDisplay() {
             const holdings = parseFloat(btcHoldings);
-            const price = parseFloat(document.getElementById('currentPrice').textContent.replace('$', '').replace(',', ''));
+            const price = parseFloat(document.getElementById('currentPrice').textContent.replace('$', '').replace(',', '')) || 0;
             const value = holdings * price;
             
-            document.getElementById('holdingsAmount').textContent = `${holdings} BTC`;
-            document.getElementById('holdingsValue').textContent = `$${value.toLocaleString()}`;
+            // Update holdings amount and value only if holdings are greater than 0
+            if (holdings > 0) {
+                document.getElementById('holdingsAmount').textContent = `${holdings} BTC`;
+                document.getElementById('holdingsValue').textContent = `$${value.toLocaleString()}`;
+                document.getElementById('holdingsInfo').style.display = 'block'; // Show holdings info
+            } else {
+                document.getElementById('holdingsAmount').textContent = '';
+                document.getElementById('holdingsValue').textContent = '$0.00';
+                document.getElementById('holdingsInfo').style.display = 'none'; // Hide holdings info
+            }
         }
 
         // Initialize Chart
@@ -541,31 +585,62 @@
 
         const chart = new Chart(ctx, chartConfig);
 
-        async function fetchHistoricalData() {
-            try {
+        async function fetchHistoricalData(timeframe) {
+            return new Promise(async (resolve, reject) => {
+                let url;
                 const now = Math.floor(Date.now() / 1000);
-                const oneHourAgo = now - 3600;
-                const response = await fetch(`https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=usd&from=${oneHourAgo}&to=${now}`);
-                const data = await response.json();
                 
-                // Clear existing data
-                priceData.labels = [];
-                priceData.datasets[0].data = [];
-                
-                // Process historical data
-                data.prices.forEach(([timestamp, price]) => {
-                    const date = new Date(timestamp);
-                    priceData.labels.push(date.toLocaleTimeString());
-                    priceData.datasets[0].data.push(price);
-                });
-                
-                chart.update();
-            } catch (error) {
-                console.error('Error fetching historical data:', error);
-            }
+                switch (timeframe) {
+                    case 'hour':
+                        const oneHourAgo = now - 3600;
+                        url = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=usd&from=${oneHourAgo}&to=${now}`;
+                        break;
+                    case 'day':
+                        const oneDayAgo = now - 86400;
+                        url = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=usd&from=${oneDayAgo}&to=${now}`;
+                        break;
+                    case 'lastYear':
+                        const oneYearAgo = now - 31536000; // 1 year ago in seconds
+                        url = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=usd&from=${oneYearAgo}&to=${now}`;
+                        break;
+                    default:
+                        reject('Invalid timeframe');
+                        return;
+                }
+
+                try {
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    
+                    // Clear existing data
+                    priceData.labels = [];
+                    priceData.datasets[0].data = [];
+                    
+                    // Process historical data
+                    data.prices.forEach(([timestamp, price]) => {
+                        const date = new Date(timestamp);
+                        priceData.labels.push(date.toLocaleTimeString());
+                        priceData.datasets[0].data.push(price);
+                    });
+                    
+                    chart.update();
+                    resolve(); // Resolve the promise after data is processed
+                } catch (error) {
+                    console.error('Error fetching historical data:', error);
+                    reject(error); // Reject the promise on error
+                }
+            });
         }
 
         async function fetchPrice(isRefresh = false) {
+            const currentTime = Date.now();
+            
+            // Check if the cooldown period has passed
+            if (currentTime - lastApiCallTime < apiCallCooldown) {
+                console.warn('API call limit reached. Please wait before making another request.');
+                return; // Exit the function if the limit is reached
+            }
+
             try {
                 const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
                 const data = await response.json();
@@ -573,6 +648,7 @@
                 
                 document.getElementById('currentPrice').textContent = `$${price.toLocaleString()}`;
                 updateHoldingsDisplay();
+                await updatePriceChange('hour'); // Default to hour for initial load
                 
                 const now = new Date();
                 
@@ -599,6 +675,8 @@
                         refreshing = false;
                     }, 500);
                 }
+
+                lastApiCallTime = currentTime; // Update the last API call time
             } catch (error) {
                 console.error('Error fetching price:', error);
                 if (isRefresh) {
@@ -608,8 +686,53 @@
             }
         }
 
+        async function updatePriceChange(timeframe) {
+            try {
+                const now = Math.floor(Date.now() / 1000);
+                let fromTime;
+
+                switch (timeframe) {
+                    case 'hour':
+                        fromTime = now - 3600; // 1 hour ago
+                        break;
+                    case 'day':
+                        fromTime = now - 86400; // 24 hours ago
+                        break;
+                    case 'lastYear':
+                        fromTime = now - 31536000; // 1 year ago in seconds
+                        break;
+                    default:
+                        return;
+                }
+
+                const url = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=usd&from=${fromTime}&to=${now}`;
+                const response = await fetch(url);
+                const data = await response.json();
+                const prices = data.prices;
+
+                if (prices.length > 0) {
+                    const initialPrice = prices[0][1]; // Price at the start of the timeframe
+                    const currentPrice = prices[prices.length - 1][1]; // Current price
+
+                    const priceChange = ((currentPrice - initialPrice) / initialPrice) * 100; // Calculate percentage change
+                    const priceChangeElement = document.getElementById('priceChange');
+
+                    priceChangeElement.textContent = `(${priceChange.toFixed(2)}%)`; // Display percentage change
+
+                    // Change color based on price change
+                    if (priceChange < 0) {
+                        priceChangeElement.style.color = 'red'; // Down
+                    } else {
+                        priceChangeElement.style.color = chartLineColor; // Up, match chart line color
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching historical price data:', error);
+            }
+        }
+
         // Initial load of historical data and regular updates
-        fetchHistoricalData();
+        fetchHistoricalData('hour');
         fetchPrice();
         setInterval(fetchPrice, 60000);
 
@@ -648,6 +771,28 @@
                     console.log('User dismissed the A2HS prompt');
                 }
                 deferredPrompt = null;
+            });
+        });
+
+        function showTimeframePopup() {
+            document.querySelector('.action-sheet-backdrop').classList.add('active');
+            document.getElementById('timeframeSheet').classList.add('active');
+        }
+
+        function hideTimeframePopup() {
+            document.querySelector('.action-sheet-backdrop').classList.remove('active');
+            document.getElementById('timeframeSheet').classList.remove('active');
+        }
+
+        function updateTimeframeButton() {
+            document.getElementById('timeframeButton').textContent = currentTimeframe; // Update button text
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Fetch historical data for the last 24 hours and update price change on startup
+            fetchHistoricalData('day').then(() => {
+                updatePriceChange('day'); // Update price change after fetching historical data
+                updateTimeframeButton(); // Set the initial button text
             });
         });
     </script>
