@@ -46,8 +46,8 @@
             /* Layout Constants */
             --safe-top: env(safe-area-inset-top);
             --safe-bottom: env(safe-area-inset-bottom);
-            --nav-height: 44px;
-            --tab-height: 49px;
+            --nav-height: 52px; /* Increased from 44px */
+            --tab-height: 56px; /* Increased from 49px */
         }
 
         [data-theme="light"] {
@@ -124,6 +124,7 @@
             transition: transform 0.5s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.5s cubic-bezier(0.4, 0.0, 0.2, 1);
             opacity: 0;
             will-change: transform, opacity;
+            margin-bottom: 260px; /* Added to raise the sheet higher */
         }
 
         .action-sheet.active {
@@ -412,12 +413,15 @@
         </div>
     </div>
 
+    <button id="addToHomeScreen" style="display: none;">Add to Home Screen</button>
+
     <script>
         let currentTheme = localStorage.getItem('theme') || 'dark';
         let btcHoldings = localStorage.getItem('btcHoldings') || 0;
         let currentApiProvider = localStorage.getItem('apiProvider') || 'coingecko';
         let lastY = 0;
         let refreshing = false;
+        let deferredPrompt;
 
         document.documentElement.setAttribute('data-theme', currentTheme);
 
@@ -496,7 +500,8 @@
                 borderColor: '#00FF00',
                 borderWidth: 2,
                 fill: false,
-                tension: 0.4
+                tension: 0.4,
+                pointRadius: 0 // Remove points on the line
             }]
         };
 
@@ -534,40 +539,54 @@
 
         const chart = new Chart(ctx, chartConfig);
 
+        async function fetchHistoricalData() {
+            try {
+                const now = Math.floor(Date.now() / 1000);
+                const oneHourAgo = now - 3600;
+                const response = await fetch(`https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=usd&from=${oneHourAgo}&to=${now}`);
+                const data = await response.json();
+                
+                // Clear existing data
+                priceData.labels = [];
+                priceData.datasets[0].data = [];
+                
+                // Process historical data
+                data.prices.forEach(([timestamp, price]) => {
+                    const date = new Date(timestamp);
+                    priceData.labels.push(date.toLocaleTimeString());
+                    priceData.datasets[0].data.push(price);
+                });
+                
+                chart.update();
+            } catch (error) {
+                console.error('Error fetching historical data:', error);
+            }
+        }
+
         async function fetchPrice(isRefresh = false) {
             try {
-                let response, price;
-                
-                switch(currentApiProvider) {
-                    case 'coingecko':
-                        response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
-                        const geckoData = await response.json();
-                        price = geckoData.bitcoin.usd;
-                        break;
-                    case 'coinbase':
-                        response = await fetch('https://api.coinbase.com/v2/prices/BTC-USD/spot');
-                        const coinbaseData = await response.json();
-                        price = parseFloat(coinbaseData.data.amount);
-                        break;
-                    case 'binance':
-                        response = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
-                        const binanceData = await response.json();
-                        price = parseFloat(binanceData.price);
-                        break;
-                }
+                const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
+                const data = await response.json();
+                const price = data.bitcoin.usd;
                 
                 document.getElementById('currentPrice').textContent = `$${price.toLocaleString()}`;
                 updateHoldingsDisplay();
                 
                 const now = new Date();
-                const timeLabel = now.toLocaleTimeString();
                 
-                priceData.labels.push(timeLabel);
+                // Add new price to chart
+                priceData.labels.push(now.toLocaleTimeString());
                 priceData.datasets[0].data.push(price);
                 
-                if (priceData.labels.length > 60) {
-                    priceData.labels.shift();
-                    priceData.datasets[0].data.shift();
+                // Keep only last hour of data
+                const oneHourAgo = now.getTime() - 3600000;
+                const cutoffIndex = priceData.labels.findIndex(label => {
+                    return new Date('1/1/2023 ' + label).getTime() > oneHourAgo;
+                });
+                
+                if (cutoffIndex > 0) {
+                    priceData.labels = priceData.labels.slice(cutoffIndex);
+                    priceData.datasets[0].data = priceData.datasets[0].data.slice(cutoffIndex);
                 }
                 
                 chart.update();
@@ -587,7 +606,8 @@
             }
         }
 
-        // Update price every minute
+        // Initial load of historical data and regular updates
+        fetchHistoricalData();
         fetchPrice();
         setInterval(fetchPrice, 60000);
 
@@ -603,6 +623,31 @@
                     });
             });
         }
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            // Prevent the mini-info bar from appearing on mobile
+            e.preventDefault();
+            // Stash the event so it can be triggered later
+            deferredPrompt = e;
+            // Update UI to notify the user they can add to home screen
+            document.getElementById('addToHomeScreen').style.display = 'block';
+        });
+
+        document.getElementById('addToHomeScreen').addEventListener('click', (e) => {
+            // Hide the button
+            document.getElementById('addToHomeScreen').style.display = 'none';
+            // Show the prompt
+            deferredPrompt.prompt();
+            // Wait for the user to respond to the prompt
+            deferredPrompt.userChoice.then((choiceResult) => {
+                if (choiceResult.outcome === 'accepted') {
+                    console.log('User accepted the A2HS prompt');
+                } else {
+                    console.log('User dismissed the A2HS prompt');
+                }
+                deferredPrompt = null;
+            });
+        });
     </script>
 </body>
 </html>
