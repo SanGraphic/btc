@@ -474,6 +474,7 @@
         <button onclick="fetchHistoricalData('day'); updatePriceChange('day'); currentTimeframe = '24 Hours'; updateTimeframeButton(); hideTimeframePopup();" class="action-sheet-button" style="background-color: #1ab8f7;">24 Hours</button>
         <button onclick="fetchHistoricalData('hour'); updatePriceChange('hour'); currentTimeframe = '1 Hour'; updateTimeframeButton(); hideTimeframePopup();" class="action-sheet-button">1 Hour</button>
         <button onclick="fetchHistoricalData('lastYear'); updatePriceChange('lastYear'); currentTimeframe = 'Last Year'; updateTimeframeButton(); hideTimeframePopup();" class="action-sheet-button">Last Year</button>
+        <button onclick="fetchHistoricalData('month'); updatePriceChange('month'); currentTimeframe = 'Past Month'; updateTimeframeButton(); hideTimeframePopup();" class="action-sheet-button">Past Month</button>
         <button onclick="hideTimeframePopup();" class="action-sheet-cancel" style="background: transparent; color: white; border: 1px solid white; border-radius: 15px; padding: 10px; width: 100%;">Cancel</button>
     </div>
 
@@ -492,9 +493,8 @@
             <div class="settings-option">
                 <div>API Provider</div>
                 <select onchange="setApiProvider(this.value)">
+                    <option value="coincap">CoinCap</option>
                     <option value="coingecko">CoinGecko</option>
-                    <option value="coinbase">Coinbase</option>
-                    <option value="binance">Binance</option>
                 </select>
             </div>
             <p class="about-text">
@@ -525,16 +525,19 @@
     <script>
         let currentTheme = localStorage.getItem('theme') || 'dark';
         let btcHoldings = localStorage.getItem('btcHoldings') || 0;
-        let currentApiProvider = localStorage.getItem('apiProvider') || 'coingecko';
+        let currentApiProvider = localStorage.getItem('apiProvider') || 'coincap';
         let lastY = 0;
         let refreshing = false;
         let deferredPrompt;
         let lastRefreshTime = 0; // Track the last refresh time
         const refreshCooldown = 60000; // 1 minute cooldown
-        const chartLineColor = currentTheme === 'binance' ? '#FFA500' : '#00FF00'; // Orange for Binance, Green for dark theme
+        let chartLineColor = '#00FF00'; // Default to green for dark theme
         let lastApiCallTime = 0; // Track the last API call time
         const apiCallCooldown = 60000; // 1 minute cooldown for API calls
         let currentTimeframe = '24 Hours'; // Default timeframe
+        let manualRefreshAllowed = true; // Flag to track manual refresh
+        let apiProviders = ['coincap', 'coingecko']; // List of API providers with CoinCap first
+        let currentApiProviderIndex = apiProviders.indexOf(currentApiProvider); // Get the index of the current provider
 
         document.documentElement.setAttribute('data-theme', currentTheme);
 
@@ -549,10 +552,13 @@
             
             // Check if we are at the top of the page and if the cooldown period has passed
             if (scrollTop === 0 && y > lastY && !refreshing && (Date.now() - lastRefreshTime) > refreshCooldown) {
-                document.querySelector('.refresh-spinner').classList.add('active');
-                refreshing = true;
-                fetchPrice(true);
-                lastRefreshTime = Date.now(); // Update the last refresh time
+                if (manualRefreshAllowed) {
+                    document.querySelector('.refresh-spinner').classList.add('active');
+                    refreshing = true;
+                    fetchPrice(true);
+                    lastRefreshTime = Date.now(); // Update the last refresh time
+                    manualRefreshAllowed = false; // Disable further manual refreshes until the next auto refresh
+                }
             }
             lastY = y;
         });
@@ -569,7 +575,7 @@
             }
 
             // Update the chart line color based on the new theme
-            const chartLineColor = currentTheme === 'binance' ? '#FFA500' : '#00FF00'; // Orange for Binance, Green for dark theme
+            chartLineColor = (currentTheme === 'binance') ? '#00FF00' : '#00FF00'; // Keep green for both themes
             chart.data.datasets[0].borderColor = chartLineColor; // Update the chart line color
             chart.update(); // Refresh the chart
         }
@@ -692,6 +698,12 @@
 
         const chart = new Chart(ctx, chartConfig);
 
+        function setTimeframe(timeframe) {
+            currentTimeframe = timeframe; // Update the current timeframe
+            localStorage.setItem('timeframe', timeframe); // Store the selected timeframe
+            fetchHistoricalData(currentTimeframe); // Fetch historical data for the selected timeframe
+        }
+
         async function fetchHistoricalData(timeframe) {
             return new Promise(async (resolve, reject) => {
                 let url;
@@ -709,6 +721,10 @@
                     case 'lastYear':
                         const oneYearAgo = now - 31536000; // 1 year ago in seconds
                         url = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=usd&from=${oneYearAgo}&to=${now}`;
+                        break;
+                    case 'month':
+                        const oneMonthAgo = now - 2592000; // 30 days ago in seconds
+                        url = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=usd&from=${oneMonthAgo}&to=${now}`;
                         break;
                     default:
                         reject('Invalid timeframe');
@@ -735,6 +751,8 @@
                     resolve(); // Resolve the promise after data is processed
                 } catch (error) {
                     console.error('Error fetching historical data:', error);
+                    // Disable timeframe selection and reset text on error
+                    disableTimeframeSelection();
                     reject(error); // Reject the promise on error
                 }
             });
@@ -743,21 +761,37 @@
         async function fetchPrice(isRefresh = false) {
             const currentTime = Date.now();
             
-            // Check if the cooldown period has passed
+            // Check if the cooldown period has passed for automatic refresh
             if (currentTime - lastApiCallTime < apiCallCooldown) {
                 console.warn('API call limit reached. Please wait before making another request.');
                 return; // Exit the function if the limit is reached
             }
 
             try {
-                const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
-                if (!response.ok) throw new Error('Network response was not ok');
-                const data = await response.json();
-                const price = data.bitcoin.usd;
-                
-                document.getElementById('currentPrice').textContent = `$${price.toLocaleString()}`;
+                let response;
+                if (currentApiProvider === 'coincap') {
+                    response = await fetch('https://api.coincap.io/v2/assets/bitcoin');
+                } else if (currentApiProvider === 'coingecko') {
+                    response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
+                } else {
+                    throw new Error('Invalid API provider');
+                }
+
+                if (!response.ok) {
+                    if (response.status === 429) { // Rate limit error
+                        console.warn('Rate limit reached for ' + currentApiProvider + '. Switching to the next provider.');
+                        switchApiProvider(); // Switch to the next API provider
+                        return; // Exit the function to retry with the new provider
+                    }
+                    throw new Error('Network response was not ok');
+                }
+
+                const data = currentApiProvider === 'coincap' ? await response.json() : await response.json();
+                const price = currentApiProvider === 'coincap' ? data.data.priceUsd : data.bitcoin.usd;
+
+                document.getElementById('currentPrice').textContent = `$${parseFloat(price).toLocaleString()}`;
                 updateHoldingsDisplay();
-                await updatePriceChange('day'); // Change this to 'day' for initial load
+                await updatePriceChange(currentTimeframe); // Use the current timeframe for price change
                 
                 const now = new Date();
                 
@@ -786,13 +820,25 @@
                 }
 
                 lastApiCallTime = currentTime; // Update the last API call time
+                lastRefreshTime = currentTime; // Update the last refresh time
+                manualRefreshAllowed = true; // Allow manual refresh again after successful fetch
             } catch (error) {
                 console.error('Error fetching price:', error);
                 if (isRefresh) {
                     document.querySelector('.refresh-spinner').classList.remove('active');
-                    refreshing = false;
+                    refreshing = false; // Allow refreshing again after an error
                 }
+                // Disable timeframe selection and reset text on error
+                disableTimeframeSelection();
             }
+        }
+
+        function switchApiProvider() {
+            // Move to the next API provider
+            currentApiProviderIndex = (currentApiProviderIndex + 1) % apiProviders.length; // Cycle through the providers
+            currentApiProvider = apiProviders[currentApiProviderIndex]; // Update the current provider
+            localStorage.setItem('apiProvider', currentApiProvider); // Store the new provider
+            fetchPrice(true); // Retry fetching the price with the new provider
         }
 
         async function updatePriceChange(timeframe) {
@@ -809,6 +855,9 @@
                         break;
                     case 'lastYear':
                         fromTime = now - 31536000; // 1 year ago in seconds
+                        break;
+                    case 'month':
+                        fromTime = now - 2592000; // 30 days ago in seconds
                         break;
                     default:
                         return;
@@ -844,13 +893,26 @@
             }
         }
 
-        // Initial load of historical data and regular updates
-        fetchHistoricalData('day').then(() => {
-            updatePriceChange('day'); // Ensure this reflects the 24-hour change
-            updateTimeframeButton(); // Set the initial button text
+        function disableTimeframeSelection() {
+            // Disable the timeframe selection dropdown
+            const timeframeSelect = document.querySelector('select[onchange="setTimeframe(this.value)"]');
+            if (timeframeSelect) {
+                timeframeSelect.disabled = true; // Disable the dropdown
+                timeframeSelect.value = ''; // Reset the selected value
+            }
+            // Optionally, reset the displayed timeframe text
+            document.getElementById('timeframeButton').textContent = 'Data Unavailable'; // Update button text
+        }
+
+        // Initialize historical data fetch on load
+        fetchHistoricalData(currentTimeframe).then(() => {
+            updatePriceChange(currentTimeframe); // Ensure this reflects the selected timeframe
+            fetchPrice(); // Fetch the current price after loading historical data
+        }).catch(error => {
+            console.error('Error during initial data fetch:', error);
+            // Attempt to fetch the current price even if historical data fetch fails
+            fetchPrice(); // Fetch the current price regardless of historical data fetch success
         });
-        fetchPrice(); // Fetch the current price
-        setInterval(fetchPrice, 60000); // Set interval for price updates
 
         // Register service worker for PWA functionality
         if ('serviceWorker' in navigator) {
