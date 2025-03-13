@@ -1,7 +1,7 @@
 {
     "name": "BTC Price Chart",
     "short_name": "BTC Chart",
-    "start_url": "Untitled-1.html",
+    "start_url": "sangraphic.github.io/btc/",
     "display": "standalone",
     "background_color": "#000000",
     "theme_color": "#000000",
