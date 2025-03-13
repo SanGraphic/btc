@@ -1,9 +1,9 @@
 const CACHE_NAME = 'btc-price-chart-v1';
 const urlsToCache = [
-    'Untitled-1.html',
-    'manifest.json',
-    'icon-192.png',
-    'icon-512.png',
+    'https://sangraphic.github.io/btc/Untitled-1.html',
+    'https://sangraphic.github.io/btc/manifest.json', 
+    'https://sangraphic.github.io/btc/icon-192.png',
+    'https://sangraphic.github.io/btc/icon-512.png',
     // Add other assets you want to cache
 ];
 
