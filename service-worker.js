@@ -1,26 +1,27 @@
-const CACHE_NAME = 'btc-price-chart-v1';
+const CACHE_NAME = 'btc-cache-v1';
 const urlsToCache = [
-    'https://sangraphic.github.io/btc/',
-    'https://sangraphic.github.io/btc/manifest.json', 
-    'https://sangraphic.github.io/btc/icon-192.png',
-    'https://sangraphic.github.io/btc/icon-512.png',
+    '/',
+    '/index.html',
+    '/manifest.json',
+    '/icon-192.png',
+    '/icon-512.png',
     // Add other assets you want to cache
 ];
 
-self.addEventListener('install', event => {
+self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(CACHE_NAME)
-            .then(cache => {
+            .then((cache) => {
                 return cache.addAll(urlsToCache);
             })
     );
 });
 
-self.addEventListener('fetch', event => {
+self.addEventListener('fetch', (event) => {
     event.respondWith(
         caches.match(event.request)
-            .then(response => {
+            .then((response) => {
                 return response || fetch(event.request);
             })
     );
-}); 
+});
