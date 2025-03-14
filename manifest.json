@@ -1,7 +1,7 @@
 {
   "name": "BTC Price Tracker",
   "short_name": "BTC Tracker",
-  "start_url": "/btc",
+  "start_url": "/btc/",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#000000",
