@@ -1,7 +1,7 @@
 const CACHE_NAME = 'btc-cache-v1';
 const urlsToCache = [
     '/',
-    '/btc',
+    '/btc/',
     '/manifest.json',
     '/icon-192.png',
     '/icon-512.png',
