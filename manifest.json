@@ -1,20 +1,20 @@
-{
-  "name": "BTC Price Tracker",
-  "short_name": "BTC Tracker",
-  "start_url": "/btc/index.html",
-  "display": "standalone",
-  "background_color": "#000000",
-  "theme_color": "#000000",
-  "icons": [
-    {
-      "src": "icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png"
-    }
-  ]
-}
+   {
+       "name": "Bitcoin Price Tracker",
+       "short_name": "BTC Tracker",
+       "start_url": ".",
+       "display": "standalone",
+       "background_color": "#000000",
+       "theme_color": "#1ab8f7",
+       "icons": [
+           {
+               "src": "icon-192.png",
+               "sizes": "192x192",
+               "type": "image/png"
+           },
+           {
+               "src": "icon-512.png",
+               "sizes": "512x512",
+               "type": "image/png"
+           }
+       ]
+   }
