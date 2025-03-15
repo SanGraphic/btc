@@ -52,7 +52,7 @@
             --tab-height: 56px; /* Increased from 49px */
         }
 
-        [data-theme="binance"] {
+        [data-theme="exchange"] {
             --system-background: #121212; /* Dark background */
             --secondary-background: #1E1E1E; /* Slightly lighter dark background */
             --tertiary-background: #2A2A2A; /* Card background */
@@ -60,7 +60,7 @@
             --secondary-text: #B0B0B5; /* Light gray text */
             --tertiary-text: #808080; /* Gray text */
             --separator: rgba(255, 255, 255, 0.1); /* Light separator */
-            --accent-color: #F0B90B; /* Binance yellow */
+            --accent-color: #F0B90B; /* Exchange yellow */
             --tab-bar-background: #1E1E1E; /* Dark tab bar */
         }
 
@@ -415,6 +415,11 @@
     </style>
 </head>
 <body>
+    <!-- Add this button inside the <body> tag, preferably at the top -->
+    <div id="refreshButton" style="display: none; position: fixed; top: 10px; right: 10px; z-index: 1002;">
+        <button onclick="fetchPrice()" style="background: var(--accent-color); color: white; border: none; border-radius: 5px; padding: 10px;">Refresh</button>
+    </div>
+
     <!-- Pull to Refresh Spinner -->
     <div class="refresh-spinner">
         <i class="fas fa-sync-alt fa-spin"></i>
@@ -483,25 +488,25 @@
     <!-- Settings Page -->
     <div id="settingsPage" class="page">
         <div class="footer-text" style="font-weight: bold; text-align: left; margin: 20px 0; font-size: 1.5rem; padding-left: 16px;">Settings</div>
-        <div class="price-card">
-            <div class="price-title">Settings</div>
+        <div class="price-card" style="border-radius: 20px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);">
             <div class="settings-option">
                 <div>Theme</div>
-                <select onchange="setTheme(this.value)">
+                <select onchange="setTheme(this.value)" style="border-radius: 10px; border: 1px solid var(--separator);">
                     <option value="dark">Dark</option>
-                    <option value="binance">Binance</option>
+                    <option value="exchange">Exchange</option>
                 </select>
             </div>
             <div class="settings-option">
                 <div>API Provider</div>
-                <select onchange="setApiProvider(this.value)">
+                <select onchange="setApiProvider(this.value)" style="border-radius: 10px; border: 1px solid var(--separator);">
                     <option value="coincap">CoinCap</option>
                     <option value="coingecko">CoinGecko</option>
                 </select>
             </div>
-            <p class="about-text">
+            <p class="about-text" style="padding: 16px; color: var(--secondary-text); text-align: justify;">
                 A minimalist Bitcoin price tracker that helps you monitor your holdings in real-time. 
-                Data provided by multiple free cryptocurrency APIs.
+                Data provided by multiple free cryptocurrency APIs. 
+                <a href="https://github.com/SanGraphic/btc" target="_blank" style="color: var(--accent-color);">View Source Code on GitHub</a>
             </p>
         </div>
     </div>
@@ -577,7 +582,7 @@
             }
 
             // Update the chart line color based on the new theme
-            chartLineColor = (currentTheme === 'binance') ? '#00FF00' : '#00FF00'; // Keep green for both themes
+            chartLineColor = (currentTheme === 'exchange') ? '#00FF00' : '#00FF00'; // Keep green for both themes
             chart.data.datasets[0].borderColor = chartLineColor; // Update the chart line color
             chart.update(); // Refresh the chart
         }
@@ -675,26 +680,59 @@
                 plugins: {
                     legend: {
                         display: false
+                    },
+                    tooltip: {
+                        enabled: true,
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            label: function(tooltipItem) {
+                                const date = new Date(tooltipItem.label);
+                                const price = tooltipItem.raw.toFixed(2);
+                                // Show both the date and exact time
+                                return [`Price: $${price}`, `Date & Time: ${date.toLocaleString()}`]; // Show date and time
+                            }
+                        }
                     }
+                },
+                interaction: {
+                    mode: 'nearest',
+                    axis: 'x',
+                    intersect: false
                 },
                 scales: {
                     x: {
                         grid: {
-                            color: currentTheme === 'binance' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
+                            color: currentTheme === 'exchange' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
                         },
                         ticks: {
-                            color: currentTheme === 'binance' ? '#FFFFFF' : '#808080'
+                            color: currentTheme === 'exchange' ? '#FFFFFF' : '#808080'
                         }
                     },
                     y: {
                         grid: {
-                            color: currentTheme === 'binance' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
+                            color: currentTheme === 'exchange' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
                         },
                         ticks: {
-                            color: currentTheme === 'binance' ? '#FFFFFF' : '#808080'
+                            color: currentTheme === 'exchange' ? '#FFFFFF' : '#808080'
                         }
                     }
-                }
+                },
+                plugins: [{
+                    id: 'verticalLine',
+                    afterDraw: (chart) => {
+                        const { ctx, chartArea } = chart;
+                        const x = chart.scales.x.getValueForPixel(chartArea.right); // Get the x position
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.moveTo(x, chartArea.top);
+                        ctx.lineTo(x, chartArea.bottom);
+                        ctx.lineWidth = 2;
+                        ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)'; // Color of the vertical line
+                        ctx.stroke();
+                        ctx.restore();
+                    }
+                }]
             }
         };
 
@@ -745,7 +783,12 @@
                     // Process historical data
                     data.prices.forEach(([timestamp, price]) => {
                         const date = new Date(timestamp);
-                        priceData.labels.push(date.toLocaleTimeString());
+                        // Format labels based on the selected timeframe
+                        if (timeframe === 'month' || timeframe === 'lastYear') {
+                            priceData.labels.push(date.toLocaleDateString()); // Show date for month and year
+                        } else {
+                            priceData.labels.push(date.toLocaleTimeString()); // Show time for hour and day
+                        }
                         priceData.datasets[0].data.push(price);
                     });
                     
@@ -980,6 +1023,19 @@
                 updateTimeframeButton(); // Set the initial button text
             });
         });
+
+        // Show the refresh button only on desktop
+        function checkDesktop() {
+            if (window.innerWidth >= 1024) { // Adjust the width as needed for your definition of desktop
+                document.getElementById('refreshButton').style.display = 'block';
+            } else {
+                document.getElementById('refreshButton').style.display = 'none';
+            }
+        }
+
+        // Call checkDesktop on load and on resize
+        window.addEventListener('load', checkDesktop);
+        window.addEventListener('resize', checkDesktop);
     </script>
 </body>
 </html>
