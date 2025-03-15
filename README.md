@@ -1,4 +1,4 @@
-# Bitcoin Price Tracker
+# Bitcoin Stash Tracker
 
 ![Bitcoin Price Tracker](https://raw.githubusercontent.com/SanGraphic/btc/refs/heads/main/icon-512.png) <!-- Replace with your logo URL -->
 
