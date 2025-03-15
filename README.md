@@ -18,20 +18,12 @@ The **Bitcoin Price Tracker** is a minimalist web application designed to help u
 
 You can access the live version of the application at: [sangraphic.github.io/btc](https://sangraphic.github.io/btc)
 
+
 ## Installation
 
 To run the Bitcoin Price Tracker locally, follow these steps:
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/yourusername/btc.git
-   cd btc
-   ```
-
-2. **Open the `index.html` file** in your web browser:
-   ```bash
-   open index.html
-   ```
+1. **Open the `index.html` file** in your web browser:
 
 ## Usage
 
@@ -55,29 +47,9 @@ The application fetches Bitcoin price data from the following APIs:
 - [CoinCap](https://coincap.io/)
 - [CoinGecko](https://www.coingecko.com/)
 
-## Contributing
-
-Contributions are welcome! If you have suggestions for improvements or new features, please fork the repository and submit a pull request.
-
-1. Fork the repository.
-2. Create a new branch (`git checkout -b feature-branch`).
-3. Make your changes and commit them (`git commit -m 'Add new feature'`).
-4. Push to the branch (`git push origin feature-branch`).
-5. Create a new Pull Request.
-
-## License
-
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
 ## Acknowledgments
 
 - Thanks to the developers of [Chart.js](https://www.chartjs.org/) for their excellent charting library.
 - Special thanks to the API providers for making cryptocurrency data accessible.
-
-## Contact
-
-For any inquiries, please reach out to [your-email@example.com](mailto:your-email@example.com).
-
----
 
 **Happy Tracking!**
