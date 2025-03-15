@@ -1,6 +1,6 @@
 # Bitcoin Price Tracker
 
-![Bitcoin Price Tracker]([https://example.com/path/to/your/logo.png](https://raw.githubusercontent.com/SanGraphic/btc/refs/heads/main/icon-512.png)) <!-- Replace with your logo URL -->
+![Bitcoin Price Tracker](https://raw.githubusercontent.com/SanGraphic/btc/refs/heads/main/icon-512.png) <!-- Replace with your logo URL -->
 
 ## Overview
 
