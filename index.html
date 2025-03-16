@@ -480,6 +480,7 @@
         <div class="action-sheet-title">Select Timeframe</div>
         <button onclick="fetchHistoricalData('day'); updatePriceChange('day'); currentTimeframe = '24 Hours'; updateTimeframeButton(); hideTimeframePopup();" class="action-sheet-button" style="background-color: #1ab8f7;">24 Hours</button>
         <button onclick="fetchHistoricalData('hour'); updatePriceChange('hour'); currentTimeframe = '1 Hour'; updateTimeframeButton(); hideTimeframePopup();" class="action-sheet-button">1 Hour</button>
+        <button onclick="fetchHistoricalData('week'); updatePriceChange('week'); currentTimeframe = 'Past Week'; updateTimeframeButton(); hideTimeframePopup();" class="action-sheet-button">Past Week</button>
         <button onclick="fetchHistoricalData('lastYear'); updatePriceChange('lastYear'); currentTimeframe = 'Last Year'; updateTimeframeButton(); hideTimeframePopup();" class="action-sheet-button">Last Year</button>
         <button onclick="fetchHistoricalData('month'); updatePriceChange('month'); currentTimeframe = 'Past Month'; updateTimeframeButton(); hideTimeframePopup();" class="action-sheet-button">Past Month</button>
         <button onclick="hideTimeframePopup();" class="action-sheet-cancel" style="background: transparent; color: white; border: 1px solid white; border-radius: 15px; padding: 10px; width: 100%;">Cancel</button>
@@ -758,12 +759,16 @@
                         const oneDayAgo = now - 86400;
                         url = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=usd&from=${oneDayAgo}&to=${now}`;
                         break;
+                    case 'week':
+                        const oneWeekAgo = now - 604800; // 7 days ago in seconds
+                        url = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=usd&from=${oneWeekAgo}&to=${now}`;
+                        break;
                     case 'lastYear':
-                        const oneYearAgo = now - 31536000; // 1 year ago in seconds
+                        const oneYearAgo = now - 31536000;
                         url = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=usd&from=${oneYearAgo}&to=${now}`;
                         break;
                     case 'month':
-                        const oneMonthAgo = now - 2592000; // 30 days ago in seconds
+                        const oneMonthAgo = now - 2592000;
                         url = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=usd&from=${oneMonthAgo}&to=${now}`;
                         break;
                     default:
@@ -897,6 +902,9 @@
                         break;
                     case 'day':
                         fromTime = now - 86400; // 24 hours ago
+                        break;
+                    case 'week':
+                        fromTime = now - 604800; // 7 days ago
                         break;
                     case 'lastYear':
                         fromTime = now - 31536000; // 1 year ago in seconds
